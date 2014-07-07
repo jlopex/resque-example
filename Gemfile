@@ -1,6 +1,6 @@
 source :rubygems
 
-gem "resque"
+gem "resque", ">=1.22"
 gem "resque-status"
 gem "shoulda"
 gem "shoulda-context"
