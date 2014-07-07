@@ -22,7 +22,7 @@ class SampleApp
     @jobs = Array.new(10)
     for i in 0..9
       # Remember use the resque-status way! :-)
-      job_id = BasicJob.enqueue(:length => 100)
+      job_id = BasicJob.enqueue(WorkingJob, :length => 100)
       puts "Got back #{job_id}"
       @jobs[i] = job_id
     end
