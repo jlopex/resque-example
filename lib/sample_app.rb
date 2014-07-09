@@ -133,16 +133,6 @@ class SampleApp
     p "killing job #{uuid}"
     Resque::Plugins::Status::Hash.kill(uuid)
   end
-
-
-  def dequeue_uuid(uuid)
-    size = Resque.size(:statused)
-    p "Dequeueing #{uuid}, before dequeue there are #{Resque.size(:statused)} jobs"
-    WorkingJob.dequeue(WorkingJob, uuid)
-    if (size-1 == Resque.size(:statused))
-      puts "#{uuid}...dequeued"
-    end
-  end
  
   def queue_size
     size = Resque.size(:statused)
@@ -156,9 +146,14 @@ class SampleApp
   def workers
     p "no workers" if Resque.workers.empty?
     Resque.workers.each do |worker|
-      p worker
-      p "running job:"
-      p worker.job['payload']['args'].first
+      p "queues #{worker.queues}"
+      p "hostname #{worker.hostname}"
+      p "failed #{worker.failed}"
+      p "processed #{worker.processed}"
+      p "started #{worker.started}"
+
+      p "running job #{worker.job['payload']['args'].first}" if worker.working?
+
     end
   end
 
@@ -173,52 +168,100 @@ class SampleApp
   end
 
   def redis
+    # p Resque.redis.keys
+    #Resque.redis = 'hostname:port:db'  # all 3 values are optional
+    p Resque.redis.client.host
+    p Resque.redis.client.port
     p Resque.redis
   end
 
+  def failed
+    cnt = Resque::Failure.count
+    Resque::Failure.all(0,cnt).each do |job|
+      p"-------------"
+      p job['payload']['args'].first
+      p job
+    end
+  end
+
+  def clear_failed_queue
+    Resque::Failure.clear
+  end
+
+  def requeue(uuid, remove_from_failed = true)
+    cnt = Resque::Failure.count
+    Resque::Failure.all(0,cnt).each_with_index do |job, i|
+      if uuid == job['payload']['args'].first
+        Resque::Failure.requeue(i)
+        Resque::Failure.remove(i) if remove_from_failed
+      end
+    end
+  end
 end
 
 cmd = ARGV[0]
-arg = ARGV[1]
+uuid = ARGV[1]
 arg2 = ARGV[2]
 rq = SampleApp.new()
 # sample.run()
 case cmd
 
+  # job commands
   when 'kill'
-    rq.kill(arg)
+    rq.kill(uuid)
+  when 'status'
+    #{\"time\"=>1404887934, \"status\"=>\"queued\", \"uuid\"=>\"..\", \"options\"=>{..}}
+    rq.status(uuid)
+  when 'change_priority'
+    rq.change_priority(uuid, arg2)
+  when 'list_jobs'
+    rq.list_jobs
+  when 'enqueue'
+    prio = ARGV[1]
+    rq.enqueue(prio)
+
+  # queue commands
   when 'peek_job'
-    rq.peek_job(arg)
+    rq.peek_job(uuid)
   when 'peek'
-    rq.peek(arg)
+    rq.peek(uuid)
   when 'peek_next'
     rq.peek_next
   when 'dequeue'
-    rq.dequeue(arg)
+    rq.dequeue(uuid)
   when 'size'
     rq.queue_size
-  when 'enqueue'
-    rq.enqueue(arg)
+
+  # queues commands
   when 'destroy'
     rq.destroy_all_queues
   when 'queues'
+    # ["ultra", "low"]
     rq.queues
-  when 'status'
-    rq.status(arg)
+
+
+  # worker commands
   when 'workers'
+    #for each worker
+    # worker queues i.e ["ultra"], jobs, hostname
     rq.workers
   when 'working'
     rq.working
-  when 'dequeue_uuid'
-    rq.dequeue_uuid(arg)
+
+
+  # resque info commands
   when 'resque_info'
     rq.resque_info
   when 'redis'
     rq.redis
-  when 'change_priority'
-    rq.change_priority(arg, arg2)
-  when 'list_jobs'
-    rq.list_jobs
+
+
+  # failure management
+  when 'failed'
+    rq.failed
+  when 'requeue'
+    rq.requeue(uuid)
+
 end
 
 

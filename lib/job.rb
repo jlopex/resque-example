@@ -14,18 +14,35 @@ class WorkingJob
     @@queue
   end
 
+  def self.queue_from_priority(priority)
+    case priority.to_i
+      when 0, 1, 2
+        'low'
+      when 3, 4, 5
+        'medium'
+      when 6, 7, 8
+        'high'
+      when 9
+        'ultra'
+      else
+        'statused'
+    end
+  end
+
   def perform
     begin
+      p "options['priority'] #{options['priority']}"
+      qname = WorkingJob.queue_from_priority(options['priority'])
 
+      WorkingJob.set_queue(qname)
       total = (options['length'] || 1).to_i
       num = 0
       progress = 0
-      p "starting job"
-      p "#{self.methods}"
-      while num < total
 
+      while num < total
+        p "gets here, queue is #{@@queue}"
         # poll redis
-        at(num, total, "At #{n} of #{total}, progress #{progress}")
+        at(num, total, "At #{num} of #{total}, progress #{progress}")
 
         p "before sleep"
         sleep(1)
